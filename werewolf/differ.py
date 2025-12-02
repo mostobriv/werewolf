@@ -1,4 +1,4 @@
-from werewolf.fileview.base import FileView
+from werewolf.binaryviewhelper import BinaryViewHelper
 from werewolf.memory import MemoryView
 
 from enum import IntEnum
@@ -10,9 +10,9 @@ class ApplyOptions(IntEnum):
 
 
 class MemoryDiffer:
-	def __init__(self, runtime_memory: MemoryView, file_memory: FileView):
+	def __init__(self, runtime_memory: MemoryView, helper: BinaryViewHelper):
 		self.runtime = runtime_memory
-		self.static = file_memory
+		self.static = helper
 
 	def changed_data(self):
 		runtime_regions = self.runtime.memory_regions()

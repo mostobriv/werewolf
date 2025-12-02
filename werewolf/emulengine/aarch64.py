@@ -2,6 +2,7 @@ import unicorn
 
 from .base import EmulationEngine
 from .. import util
+from .. import common
 
 
 class Aarch64Helper:
@@ -263,8 +264,8 @@ class Aarch64EmulationEngine(EmulationEngine):
 		"V29": unicorn.arm64_const.UC_ARM64_REG_V29,
 		"V30": unicorn.arm64_const.UC_ARM64_REG_V30,
 		"V31": unicorn.arm64_const.UC_ARM64_REG_V31,
-		"ret": unicorn.arm64_const.UC_ARM64_REG_X0,
-		"link": unicorn.arm64_const.UC_ARM64_REG_X30,
+		"RET": unicorn.arm64_const.UC_ARM64_REG_X0,
+		"LINK": unicorn.arm64_const.UC_ARM64_REG_X30,
 	}
 
 	arch_helper = Aarch64Helper
@@ -283,19 +284,18 @@ class Aarch64EmulationEngine(EmulationEngine):
 		)
 
 	def setup_stackframe(self, address=None, size_hint=None):
-		self.uc.mem_map(self.fv.stack_base - 4 * self.fv.page_size, 8 * self.fv.page_size)
-		self.uc.reg_write(self.mem.regs.sp, self.fv.stack_base)
+		self.init_stack()
 
 		frame_size = None
 		if address is not None:
-			frame_size = self.fv.get_func_frame_size(address)
+			frame_size = self.bvh.get_func_frame_size(address)
 		elif size_hint is None:
-			print(
+			common.logger.warning(
 				"No size hint or address of function is provided"
 				"to setup_stackframe, using default for the %s: %#x"
-				% (self.fv.__class__.__name__, self.fv.default_frame_size)
+				% (self.bvh.__class__.__name__, self.bvh.default_frame_size)
 			)
-			frame_size = self.fv.default_frame_size
+			frame_size = self.bvh.default_frame_size
 		else:
 			frame_size = size_hint
 
@@ -304,3 +304,6 @@ class Aarch64EmulationEngine(EmulationEngine):
 		self.uc.mem_write(sp_value - 4, util.p64(0xDEADBEEFCAFEBABE))
 		self.uc.reg_write(self.mem.regs.fp, sp_value - 8)
 		self.uc.reg_write(self.mem.regs.fp, sp_value - frame_size)
+
+	def emul_return(self):
+		self.mem.write_reg(self.mem.regs.pc, self.mem.read_reg(self.mem.regs.lr))

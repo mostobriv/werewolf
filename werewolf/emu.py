@@ -4,7 +4,7 @@ import unicorn
 
 from collections.abc import Callable
 
-from .fileview.base import FileView
+from .binaryviewhelper import BinaryViewHelper
 from .emulengine import aarch64, base
 from . import util
 
@@ -27,7 +27,7 @@ def arm64_initialize_arguments(engine: base.EmulationEngine, arguments: list[Imm
 
 
 def run_emulate_function(
-	file_view: FileView,
+	file_view: BinaryViewHelper,
 	function_address: int,
 	arguments: Union[tuple[int], tuple[ImmediateArgument]] | None = None,
 	timeout: int = 0,
@@ -60,26 +60,26 @@ def run_emulate_function(
 		elif engine.arch_helper.is_call(opcode):
 			user_data["stack"] += 1
 
-	engine.add_hook(unicorn.UC_HOOK_CODE, depth_accounting_hook, user_data={"stack": 1})
+	engine.add_raw_hook(unicorn.UC_HOOK_CODE, depth_accounting_hook, user_data={"stack": 1})
 	engine.emulate_range(begin, until, timeout, count)
 
 	return engine
 
 
 def run_emulate_until_return(
-	file_view: FileView,
+	binary_view_helper: BinaryViewHelper,
 	address: int,
 	timeout: int = 0,
 	count: int = 0,
 	pre_emulation_routine: Callable | None = None,
 	post_emulation_routine: Callable | None = None,
 ) -> base.EmulationEngine:
-	engine = native_emulation_engine(file_view)
+	engine = native_emulation_engine(binary_view_helper)
 	engine.add_pre_emulation_routine(pre_emulation_routine)
 	engine.add_post_emulation_routine(post_emulation_routine)
 
 	begin = address
-	until = util.max_num_of_size(file_view.bitness)
+	until = util.max_num_of_size(binary_view_helper.bitness)
 
 	def depth_accounting_hook(uc: unicorn.Uc, address: int, size: int, user_data: dict):
 		engine = user_data["self"]
@@ -94,14 +94,14 @@ def run_emulate_until_return(
 		elif engine.arch_helper.is_call(opcode):
 			user_data["stack"] += 1
 
-	engine.add_hook(unicorn.UC_HOOK_CODE, depth_accounting_hook, user_data={"stack": 1})
+	engine.add_raw_hook(unicorn.UC_HOOK_CODE, depth_accounting_hook, user_data={"stack": 1})
 	engine.emulate_range(begin, until, timeout, count)
 
 	return engine
 
 
 def run_emulate_range(
-	file_view: FileView,
+	binary_view_helper: BinaryViewHelper,
 	begin: int,
 	until: int,
 	timeout: int = 0,
@@ -129,7 +129,7 @@ def run_emulate_range(
 		Function that is called after the emulation ends.
 	"""
 
-	engine = native_emulation_engine(file_view)
+	engine = native_emulation_engine(binary_view_helper)
 
 	if should_init_frame:
 		engine.setup_stackframe(begin)
@@ -142,13 +142,13 @@ def run_emulate_range(
 	return engine
 
 
-def native_emulation_engine(fv: FileView) -> base.EmulationEngine:
-	arch = fv.arch
+def native_emulation_engine(bvh: BinaryViewHelper) -> base.EmulationEngine:
+	arch = bvh.arch
 
 	if arch != "aarch64":
 		raise NotImplementedError("Architecture %s isn't supported yet" % arch)
 
-	return aarch64.Aarch64EmulationEngine(fv)
+	return aarch64.Aarch64EmulationEngine(bvh)
 
 
 # def code_hook(uc, address, size, user_data) -> bool:
